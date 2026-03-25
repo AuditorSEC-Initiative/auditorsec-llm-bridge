@@ -1,0 +1,15 @@
+# AuditorSEC LLM-Bridge - Funding Sources
+# GitHub FUNDING.yml
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button-in-your-repository
+
+# GitHub Sponsors
+# github: []
+
+# Open Collective
+# open_collective: auditorsec
+
+# Custom links (grant programs and company sponsorship)
+custom:
+  - https://auditorsec.org/sponsor
+  - https://brave1.gov.ua
+  - https://digital.gov.ua
