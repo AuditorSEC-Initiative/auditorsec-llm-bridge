@@ -1,0 +1,87 @@
+{
+  "name": "AuditorSEC BRAVE1 Compliance Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{"field": "cronExpression", "expression": "0 8 * * 1"}]
+        }
+      },
+      "name": "Weekly Cron Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT s.supplier_name, s.edrpou, s.sanctions_status, s.risk_score_affiliation, s.screening_status FROM suppliers s WHERE s.risk_score_affiliation > 70 OR s.sanctions_status = 'flagged' LIMIT 100",
+        "options": {}
+      },
+      "name": "MySQL: High-Risk Suppliers",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.3,
+      "position": [460, 300],
+      "credentials": {"mySql": {"id": "mysql_auditorsec", "name": "AuditorSEC MySQL"}}
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT pb.item_description, pb.supplier_name, pb.market_price_uah, pb.contract_price_uah, pb.price_deviation_pct, pb.review_status FROM price_benchmarks pb WHERE pb.price_deviation_pct > 20 AND pb.review_status = 'pending' LIMIT 100",
+        "options": {}
+      },
+      "name": "MySQL: Price Deviations",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.3,
+      "position": [460, 460],
+      "credentials": {"mySql": {"id": "mysql_auditorsec", "name": "AuditorSEC MySQL"}}
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT g.recipient_organisation, g.grant_programme, g.amount_eur, g.gprc_status, g.iam_review_required, g.mfa_enforced, g.pqc_roadmap_submitted, g.crypto_inventory_done FROM grants_risk_dossiers g WHERE g.gprc_status != 'approved' LIMIT 100",
+        "options": {}
+      },
+      "name": "MySQL: Pending Grant Dossiers",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.3,
+      "position": [460, 620],
+      "credentials": {"mySql": {"id": "mysql_auditorsec", "name": "AuditorSEC MySQL"}}
+    },
+    {
+      "parameters": {
+        "jsCode": "const suppliers = $('MySQL: High-Risk Suppliers').all();\nconst prices = $('MySQL: Price Deviations').all();\nconst grants = $('MySQL: Pending Grant Dossiers').all();\n\nconst report = {\n  generated: new Date().toISOString(),\n  summary: {\n    high_risk_suppliers: suppliers.length,\n    price_deviations: prices.length,\n    pending_grant_dossiers: grants.length\n  },\n  data: { suppliers, prices, grants }\n};\n\nreturn [{ json: report }];"
+      },
+      "name": "Build BRAVE1 Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 460]
+    },
+    {
+      "parameters": {
+        "fromEmail": "compliance@auditorsec.eu",
+        "toEmail": "compliance@auditorsec.eu",
+        "subject": "[BRAVE1 Weekly] AuditorSEC NIS2/DORA Compliance Report",
+        "emailType": "html",
+        "message": "<h2>AuditorSEC BRAVE1 Weekly Compliance Report</h2><p>Generated: {{$json.generated}}</p><h3>Summary</h3><ul><li>High-Risk Suppliers: {{$json.summary.high_risk_suppliers}}</li><li>Price Deviations >20%: {{$json.summary.price_deviations}}</li><li>Pending Grant Dossiers (IAM/PQC): {{$json.summary.pending_grant_dossiers}}</li></ul><p>NIS2/DORA IAM/PQC controls deadline: 18 Apr 2026</p>",
+        "options": {}
+      },
+      "name": "Send Slack/Email Report",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [900, 460]
+    }
+  ],
+  "connections": {
+    "Weekly Cron Trigger": {"main": [[{"node": "MySQL: High-Risk Suppliers", "type": "main", "index": 0}, {"node": "MySQL: Price Deviations", "type": "main", "index": 0}, {"node": "MySQL: Pending Grant Dossiers", "type": "main", "index": 0}]]},
+    "MySQL: High-Risk Suppliers": {"main": [[{"node": "Build BRAVE1 Report", "type": "main", "index": 0}]]},
+    "MySQL: Price Deviations": {"main": [[{"node": "Build BRAVE1 Report", "type": "main", "index": 0}]]},
+    "MySQL: Pending Grant Dossiers": {"main": [[{"node": "Build BRAVE1 Report", "type": "main", "index": 0}]]},
+    "Build BRAVE1 Report": {"main": [[{"node": "Send Slack/Email Report", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1"},
+  "meta": {
+    "description": "Weekly BRAVE1/EU4UA NIS2-DORA compliance report: MySQL queries for high-risk suppliers, price deviations >20%, and pending IAM/PQC grant dossiers. Outputs HTML email report.",
+    "tags": ["brave1", "eu4ua", "nis2", "dora", "pqc", "iam", "compliance", "auditorsec", "diia-city"]
+  }
+}
